@@ -1,6 +1,8 @@
 package fr.enimaloc.enutils.jda.commands;
 
 import fr.enimaloc.enutils.jda.exception.RegisteredExceptionHandler;
+import fr.enimaloc.enutils.jda.registered.RegisteredCommand;
+import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
@@ -20,16 +22,16 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-public record RegisteredCommand(
+public record RegisteredSlash(
         @NotNull UnionCommandData data,
         @NotNull ParameterData[] parameters,
         @NotNull Object instance,
         @Nullable Method method,
         @NotNull String fullCommandName,
         @Nullable String description,
-        @NotNull RegisteredExceptionHandler[] exceptionsHandler,
+        @NotNull RegisteredExceptionHandler<SlashCommandInteractionEvent>[] exceptionsHandler,
         @Nullable DebugInformation debugInformation
-) {
+) implements RegisteredCommand {
 
     public void execute(SlashCommandInteractionEvent event) {
         List<Object> params = new ArrayList<>();
@@ -57,7 +59,7 @@ public record RegisteredCommand(
     }
 
     private void processThrowable(SlashCommandInteractionEvent event, InteractionHook hook, Throwable t) {
-        for (RegisteredExceptionHandler handler : exceptionsHandler) {
+        for (RegisteredExceptionHandler<SlashCommandInteractionEvent> handler : exceptionsHandler) {
             Class<?> exceptionArg = Arrays.stream(handler.method().getParameterTypes())
                     .filter(c -> c.isAssignableFrom(t.getClass()))
                     .findFirst()

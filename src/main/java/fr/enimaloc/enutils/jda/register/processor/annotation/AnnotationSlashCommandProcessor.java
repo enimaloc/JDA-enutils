@@ -1,15 +1,12 @@
 package fr.enimaloc.enutils.jda.register.processor.annotation;
 
-import fr.enimaloc.enutils.jda.commands.RegisteredCommand;
-import fr.enimaloc.enutils.jda.commands.RegisteredCommand.OptionTransformer;
+import fr.enimaloc.enutils.jda.commands.RegisteredSlash;
+import fr.enimaloc.enutils.jda.commands.RegisteredSlash.OptionTransformer;
 import fr.enimaloc.enutils.jda.commands.UnionCommandData;
 import fr.enimaloc.enutils.jda.exception.CommandException;
 import fr.enimaloc.enutils.jda.exception.RegisteredExceptionHandler;
-import fr.enimaloc.enutils.jda.register.annotation.Catch;
-import fr.enimaloc.enutils.jda.register.annotation.Command;
-import fr.enimaloc.enutils.jda.register.annotation.I18n;
-import fr.enimaloc.enutils.jda.register.annotation.MethodTarget;
-import fr.enimaloc.enutils.jda.register.processor.CommandsProcessor;
+import fr.enimaloc.enutils.jda.register.annotation.*;
+import fr.enimaloc.enutils.jda.register.processor.SlashCommandProcessor;
 import fr.enimaloc.enutils.jda.utils.AnnotationUtils;
 import fr.enimaloc.enutils.jda.utils.Checks;
 import net.dv8tion.jda.api.entities.Member;
@@ -59,23 +56,23 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class AnnotationCommandProcessor implements CommandsProcessor {
+public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
 
-    public static final Logger LOGGER = LoggerFactory.getLogger(AnnotationCommandProcessor.class);
+    public static final Logger LOGGER = LoggerFactory.getLogger(AnnotationSlashCommandProcessor.class);
     public static final String DEFAULT_DESCRIPTION = "No description";
 
     private List<OptionTransformer<?>> transformers = new ArrayList<>(DEFAULT_TRANSFORMERS);
 
     // region Method command
     @Override
-    public RegisteredCommand registerCommand(Object instance, Method method) {
+    public RegisteredSlash registerCommand(Object instance, Method method) {
         return processMethodCommand(instance, method);
     }
     // endregion
 
     // region Class command
     @Override
-    public RegisteredCommand[] registerCommand(Object instance) {
+    public RegisteredSlash[] registerCommand(Object instance) {
         return processClassCommands(instance);
     }
     // endregion
@@ -92,6 +89,7 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
                         "ExceptionHandler method supports only Throwable, InteractionHook and SlashCommandInteractionEvent parameters");
                 Checks.Reflection.trySetAccessible(method, "ExceptionHandler method must be accessible");
                 exceptionsHandler.add(new RegisteredExceptionHandler(
+                        SlashCommandInteractionEvent.class,
                         exceptionHandler.value(),
                         instance,
                         method
@@ -101,8 +99,8 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         return exceptionsHandler.toArray(RegisteredExceptionHandler[]::new);
     }
 
-    private RegisteredCommand processMethodCommand(Object instance, Method method) {
-        if (!method.isAnnotationPresent(Command.class)) {
+    private RegisteredSlash processMethodCommand(Object instance, Method method) {
+        if (!method.isAnnotationPresent(Slash.class)) {
             return null;
         }
         Checks.min(method.getParameterCount(), 1, "Command method must have at least 1 parameter");
@@ -110,15 +108,15 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
                 "Command method first parameter must be SlashCommandInteractionEvent or a subclass");
         Checks.Reflection.trySetAccessible(method, "Command method must be accessible");
 
-        Command command = method.getAnnotation(Command.class);
-        String name = normaliseName(AnnotationUtils.get(command.name()).orElse(method.getName()));
-        String description = AnnotationUtils.get(command.description()).orElse(DEFAULT_DESCRIPTION);
-        RegisteredCommand.ParameterData[] params = processParams(instance, method);
+        Slash slash = method.getAnnotation(Slash.class);
+        String name = normaliseName(AnnotationUtils.get(slash.name()).orElse(method.getName()));
+        String description = AnnotationUtils.get(slash.description()).orElse(DEFAULT_DESCRIPTION);
+        RegisteredSlash.ParameterData[] params = processParams(instance, method);
         CommandDataImpl data = applyData(new CommandDataImpl(name, description), instance, name, method);
         data.addOptions(Arrays.stream(params)
-                .map(RegisteredCommand.ParameterData::data)
+                .map(RegisteredSlash.ParameterData::data)
                 .toArray(OptionData[]::new));
-        return new RegisteredCommand(
+        return new RegisteredSlash(
                 new UnionCommandData(data),
                 params,
                 instance,
@@ -130,28 +128,28 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         );
     }
 
-    private RegisteredCommand[] processClassCommands(Object instance) {
-        List<RegisteredCommand> commands = new ArrayList<>();
+    private RegisteredSlash[] processClassCommands(Object instance) {
+        List<RegisteredSlash> commands = new ArrayList<>();
         Class<?> clazz = instance.getClass();
         for (Method method : clazz.getDeclaredMethods()) {
-            if (method.isAnnotationPresent(Command.class)) {
-                RegisteredCommand command = processMethodCommand(instance, method);
+            if (method.isAnnotationPresent(Slash.class)) {
+                RegisteredSlash command = processMethodCommand(instance, method);
                 if (command != null) {
                     commands.add(command);
                 }
             }
         }
-        if (!clazz.isAnnotationPresent(Command.class)) {
-            return commands.toArray(RegisteredCommand[]::new);
+        if (!clazz.isAnnotationPresent(Slash.class)) {
+            return commands.toArray(RegisteredSlash[]::new);
         }
-        Command command = clazz.getAnnotation(Command.class);
-        String name = normaliseName(AnnotationUtils.get(command.name()).orElse(clazz.getSimpleName()));
-        String description = AnnotationUtils.get(command.description()).orElse(DEFAULT_DESCRIPTION);
+        Slash slash = clazz.getAnnotation(Slash.class);
+        String name = normaliseName(AnnotationUtils.get(slash.name()).orElse(clazz.getSimpleName()));
+        String description = AnnotationUtils.get(slash.description()).orElse(DEFAULT_DESCRIPTION);
         CommandDataImpl data = applyData(new CommandDataImpl(name, description), instance, name, clazz);
         for (Method method : Arrays.stream(instance.getClass().getDeclaredMethods())
-                .filter(m -> m.isAnnotationPresent(Command.Sub.class))
+                .filter(m -> m.isAnnotationPresent(Slash.Sub.class))
                 .toList()) {
-            RegisteredCommand subCommand = processMethodSubCommand(instance, name, method);
+            RegisteredSlash subCommand = processMethodSubCommand(instance, name, method);
             if (subCommand != null) {
                 commands.add(subCommand);
                 data.addSubcommands(subCommand.data().getSubcommandData());
@@ -159,26 +157,26 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         }
 
         for (Field field : Arrays.stream(instance.getClass().getDeclaredFields())
-                .filter(f -> f.isAnnotationPresent(Command.Sub.GroupProvider.class))
+                .filter(f -> f.isAnnotationPresent(Slash.Sub.GroupProvider.class))
                 .toList()) {
-            RegisteredCommand[] groupCommands = processClassGroupCommands(instance, name, field);
+            RegisteredSlash[] groupCommands = processClassGroupCommands(instance, name, field);
             commands.addAll(Arrays.asList(groupCommands));
             Arrays.stream(groupCommands)
                     .filter(c -> c.data().isSubcommandGroupData())
                     .forEach(c -> data.addSubcommandGroups(c.data().getSubcommandGroupData()));
         }
         for (Method method : Arrays.stream(instance.getClass().getDeclaredMethods())
-                .filter(m -> m.isAnnotationPresent(Command.Sub.GroupProvider.class))
+                .filter(m -> m.isAnnotationPresent(Slash.Sub.GroupProvider.class))
                 .toList()) {
-            RegisteredCommand[] groupCommands = processClassGroupCommands(instance, name, method);
+            RegisteredSlash[] groupCommands = processClassGroupCommands(instance, name, method);
             commands.addAll(Arrays.asList(groupCommands));
             Arrays.stream(groupCommands)
                     .filter(c -> c.data().isSubcommandGroupData())
                     .forEach(c -> data.addSubcommandGroups(c.data().getSubcommandGroupData()));
         }
-        commands.add(new RegisteredCommand(
+        commands.add(new RegisteredSlash(
                 new UnionCommandData(data),
-                new RegisteredCommand.ParameterData[0],
+                new RegisteredSlash.ParameterData[0],
                 instance,
                 null,
                 name,
@@ -186,24 +184,24 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
                 getExceptionHandler(instance),
                 null
         ));
-        return commands.toArray(RegisteredCommand[]::new);
+        return commands.toArray(RegisteredSlash[]::new);
     }
 
-    private RegisteredCommand processMethodSubCommand(Object instance, String baseName, Method method) {
-        if (!method.isAnnotationPresent(Command.Sub.class)) {
+    private RegisteredSlash processMethodSubCommand(Object instance, String baseName, Method method) {
+        if (!method.isAnnotationPresent(Slash.Sub.class)) {
             return null;
         }
         Checks.Reflection.trySetAccessible(method, "Command method must be accessible");
-        Command.Sub sub = method.getAnnotation(Command.Sub.class);
+        Slash.Sub sub = method.getAnnotation(Slash.Sub.class);
         String subName = normaliseName(AnnotationUtils.get(sub.name()).orElse(method.getName()));
         String subDescription = AnnotationUtils.get(sub.description()).orElse(DEFAULT_DESCRIPTION);
-        RegisteredCommand.ParameterData[] params = processParams(instance, method);
+        RegisteredSlash.ParameterData[] params = processParams(instance, method);
         SubcommandData subData = applyData(new SubcommandData(subName, subDescription), instance,
                 baseName.replace(" ", ".") + "." + subName, method);
         subData.addOptions(Arrays.stream(params)
-                .map(RegisteredCommand.ParameterData::data)
+                .map(RegisteredSlash.ParameterData::data)
                 .toArray(OptionData[]::new));
-        return new RegisteredCommand(
+        return new RegisteredSlash(
                 new UnionCommandData(subData),
                 params,
                 instance,
@@ -215,10 +213,10 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         );
     }
 
-    private <T extends AccessibleObject & java.lang.reflect.Member> RegisteredCommand[] processClassGroupCommands(
+    private <T extends AccessibleObject & java.lang.reflect.Member> RegisteredSlash[] processClassGroupCommands(
             Object instance, String baseName, T object) {
-        if (!object.isAnnotationPresent(Command.Sub.GroupProvider.class)) {
-            return new RegisteredCommand[0];
+        if (!object.isAnnotationPresent(Slash.Sub.GroupProvider.class)) {
+            return new RegisteredSlash[0];
         }
         Checks.Reflection.trySetAccessible(object, "Command field must be accessible");
         Object targetInstance;
@@ -227,21 +225,21 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new CommandException(e);
         }
-        Command.Sub.GroupProvider groupProvider = object.getAnnotation(Command.Sub.GroupProvider.class);
+        Slash.Sub.GroupProvider groupProvider = object.getAnnotation(Slash.Sub.GroupProvider.class);
         String name = normaliseName(AnnotationUtils.get(groupProvider.name()).orElse(object.getName()));
         String description = AnnotationUtils.get(groupProvider.description()).orElse(DEFAULT_DESCRIPTION);
         SubcommandGroupData data = applyData(new SubcommandGroupData(name, description), targetInstance, baseName + " " + name, object);
-        List<RegisteredCommand> commands = new ArrayList<>();
+        List<RegisteredSlash> commands = new ArrayList<>();
         for (Method method : targetInstance.getClass().getDeclaredMethods()) {
-            RegisteredCommand subCommand = processMethodSubCommand(targetInstance, baseName + " " + name, method);
+            RegisteredSlash subCommand = processMethodSubCommand(targetInstance, baseName + " " + name, method);
             if (subCommand != null) {
                 commands.add(subCommand);
                 data.addSubcommands(subCommand.data().getSubcommandData());
             }
         }
-        commands.add(new RegisteredCommand(
+        commands.add(new RegisteredSlash(
                 new UnionCommandData(data),
-                new RegisteredCommand.ParameterData[0],
+                new RegisteredSlash.ParameterData[0],
                 targetInstance,
                 null,
                 baseName + " " + name,
@@ -249,12 +247,12 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
                 getExceptionHandler(instance),
                 null
         ));
-        return commands.toArray(RegisteredCommand[]::new);
+        return commands.toArray(RegisteredSlash[]::new);
     }
 
     private SubcommandGroupData applyData(SubcommandGroupData data, Object instance, String name, AnnotatedElement element) {
-        if (element.isAnnotationPresent(Command.Sub.GroupProvider.class)) {
-            Command.Sub.GroupProvider groupProvider = element.getAnnotation(Command.Sub.GroupProvider.class);
+        if (element.isAnnotationPresent(Slash.Sub.GroupProvider.class)) {
+            Slash.Sub.GroupProvider groupProvider = element.getAnnotation(Slash.Sub.GroupProvider.class);
             if (groupProvider.i18nName() != null) {
                 processI18n(instance, name, groupProvider.i18nName(), (locale, i18n) -> data.setNameLocalization(locale, normaliseName(i18n)));
             }
@@ -278,12 +276,12 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         }
         I18n i18nName = null;
         I18n i18nDescription = null;
-        if (element.isAnnotationPresent(Command.class)) {
-            Command command = element.getAnnotation(Command.class);
-            i18nName = command.i18nName();
-            i18nDescription = command.i18nDescription();
-        } else if (element.isAnnotationPresent(Command.Sub.GroupProvider.class)) {
-            Command.Sub.GroupProvider groupProvider = element.getAnnotation(Command.Sub.GroupProvider.class);
+        if (element.isAnnotationPresent(Slash.class)) {
+            Slash slash = element.getAnnotation(Slash.class);
+            i18nName = slash.i18nName();
+            i18nDescription = slash.i18nDescription();
+        } else if (element.isAnnotationPresent(Slash.Sub.GroupProvider.class)) {
+            Slash.Sub.GroupProvider groupProvider = element.getAnnotation(Slash.Sub.GroupProvider.class);
             i18nName = groupProvider.i18nName();
             i18nDescription = groupProvider.i18nDescription();
         }
@@ -297,8 +295,8 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
     }
 
     private SubcommandData applyData(SubcommandData data, Object instance, String name, AnnotatedElement element) {
-        if (element.isAnnotationPresent(Command.Sub.class)) {
-            Command.Sub sub = element.getAnnotation(Command.Sub.class);
+        if (element.isAnnotationPresent(Slash.Sub.class)) {
+            Slash.Sub sub = element.getAnnotation(Slash.Sub.class);
             if (sub.i18nName() != null) {
                 processI18n(instance, name, sub.i18nName(), (locale, i18n) -> data.setNameLocalization(locale, normaliseName(i18n)));
             }
@@ -309,14 +307,19 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
         return data;
     }
 
+    @Override
+    public RegisteredSlash[] generateArray(int length) {
+        return new RegisteredSlash[length];
+    }
+
     // region Commands related
-    private RegisteredCommand.ParameterData[] processParams(Object instance, Method method) {
-        List<RegisteredCommand.ParameterData> params = new ArrayList<>();
+    private RegisteredSlash.ParameterData[] processParams(Object instance, Method method) {
+        List<RegisteredSlash.ParameterData> params = new ArrayList<>();
         for (int i = 1; i < method.getParameters().length; i++) {
             Parameter parameter = method.getParameters()[i];
-            Checks.Reflection.annotationPresent(parameter, Command.Option.class);
+            Checks.Reflection.annotationPresent(parameter, Slash.Option.class);
 
-            Command.Option option = parameter.getAnnotation(Command.Option.class);
+            Slash.Option option = parameter.getAnnotation(Slash.Option.class);
             String name = normaliseName(AnnotationUtils.get(option.name()).orElse(parameter.getName()));
             String description = AnnotationUtils.get(option.description()).orElse(DEFAULT_DESCRIPTION);
             OptionTransformer<?> transformer = transformers.stream()
@@ -354,15 +357,15 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
                             && !OptionalInt.class.isAssignableFrom(parameter.getType())
                             && !OptionalDouble.class.isAssignableFrom(parameter.getType())
             );
-            if (parameter.isAnnotationPresent(Command.Option.Choices.class)) {
-                Command.Option.Choices choices = parameter.getAnnotation(Command.Option.Choices.class);
-                for (Command.Option.Choice choice : choices.value()) {
+            if (parameter.isAnnotationPresent(Slash.Option.Choices.class)) {
+                Slash.Option.Choices choices = parameter.getAnnotation(Slash.Option.Choices.class);
+                for (Slash.Option.Choice choice : choices.value()) {
                     data.addChoice(choice.value(), AnnotationUtils.get(choice.devValue()).orElse(choice.value()));
                 }
             }
             Consumer<CommandAutoCompleteInteractionEvent> autocompletionConsumer = null;
-            if (parameter.isAnnotationPresent(Command.Option.AutoCompletion.class)) {
-                Command.Option.AutoCompletion autoCompletion = parameter.getAnnotation(Command.Option.AutoCompletion.class);
+            if (parameter.isAnnotationPresent(Slash.Option.AutoCompletion.class)) {
+                Slash.Option.AutoCompletion autoCompletion = parameter.getAnnotation(Slash.Option.AutoCompletion.class);
                 Optional<Method> methodFound = getMethod(instance, autoCompletion.target());
                 if (autoCompletion.array().length != 0) {
                     autocompletionConsumer = event -> event.replyChoices(Arrays.stream(autoCompletion.array())
@@ -388,9 +391,9 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
 
                 data.setAutoComplete(autocompletionConsumer != null);
             }
-            params.add(new RegisteredCommand.ParameterData(transformer.builder().apply(data, parameter), transformer, autocompletionConsumer));
+            params.add(new RegisteredSlash.ParameterData(transformer.builder().apply(data, parameter), transformer, autocompletionConsumer));
         }
-        return params.toArray(RegisteredCommand.ParameterData[]::new);
+        return params.toArray(RegisteredSlash.ParameterData[]::new);
     }
     // endregion
 
@@ -516,8 +519,8 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
                     mapping -> mapping == null ? OptionalDouble.empty() : OptionalDouble.of(mapping.getAsDouble())),
 
             new OptionTransformer<String>(String.class, OptionType.STRING, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Length.class)) {
-                    Command.Option.Length range = parameter.getAnnotation(Command.Option.Length.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Length.class)) {
+                    Slash.Option.Length range = parameter.getAnnotation(Slash.Option.Length.class);
                     Checks.inRange(range.min(), 0, 6000, "String length min must be between 0 and 6000");
                     Checks.inRange(range.max(), 1, 6000, "String length max must be between 1 and 6000");
                     builder.setRequiredLength(range.min(), range.max());
@@ -526,45 +529,45 @@ public class AnnotationCommandProcessor implements CommandsProcessor {
             }, OptionMapping::getAsString),
 
             new OptionTransformer<Integer>(Integer.class, OptionType.INTEGER, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Range.class)) {
-                    Command.Option.Range range = parameter.getAnnotation(Command.Option.Range.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Range.class)) {
+                    Slash.Option.Range range = parameter.getAnnotation(Slash.Option.Range.class);
                     builder.setRequiredRange(range.min(), range.max());
                 }
                 return builder;
             }, OptionMapping::getAsInt),
             new OptionTransformer<Integer>(int.class, OptionType.INTEGER, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Range.class)) {
-                    Command.Option.Range range = parameter.getAnnotation(Command.Option.Range.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Range.class)) {
+                    Slash.Option.Range range = parameter.getAnnotation(Slash.Option.Range.class);
                     builder.setRequiredRange((long) range.min(), (long) range.max());
                 }
                 return builder;
             }, OptionMapping::getAsInt),
 
             new OptionTransformer<Long>(Long.class, OptionType.INTEGER, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Range.class)) {
-                    Command.Option.Range range = parameter.getAnnotation(Command.Option.Range.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Range.class)) {
+                    Slash.Option.Range range = parameter.getAnnotation(Slash.Option.Range.class);
                     builder.setRequiredRange((long) range.min(), (long) range.max());
                 }
                 return builder;
             }, OptionMapping::getAsLong),
             new OptionTransformer<Long>(long.class, OptionType.INTEGER, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Range.class)) {
-                    Command.Option.Range range = parameter.getAnnotation(Command.Option.Range.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Range.class)) {
+                    Slash.Option.Range range = parameter.getAnnotation(Slash.Option.Range.class);
                     builder.setRequiredRange((long) range.min(), (long) range.max());
                 }
                 return builder;
             }, OptionMapping::getAsLong),
 
             new OptionTransformer<Double>(Double.class, OptionType.NUMBER, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Range.class)) {
-                    Command.Option.Range range = parameter.getAnnotation(Command.Option.Range.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Range.class)) {
+                    Slash.Option.Range range = parameter.getAnnotation(Slash.Option.Range.class);
                     builder.setRequiredRange(range.min(), range.max());
                 }
                 return builder;
             }, OptionMapping::getAsDouble),
             new OptionTransformer<Double>(double.class, OptionType.NUMBER, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Command.Option.Range.class)) {
-                    Command.Option.Range range = parameter.getAnnotation(Command.Option.Range.class);
+                if (parameter.isAnnotationPresent(Slash.Option.Range.class)) {
+                    Slash.Option.Range range = parameter.getAnnotation(Slash.Option.Range.class);
                     builder.setRequiredRange(range.min(), range.max());
                 }
                 return builder;

@@ -1,5 +1,6 @@
 package fr.enimaloc.enutils.jda.commands;
 
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
@@ -8,29 +9,39 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class UnionCommandData {
+    @Nullable private final CommandData commandData;
     @Nullable private final SlashCommandData slashCommandData;
     @Nullable private final SubcommandGroupData subcommandGroupData;
     @Nullable private final SubcommandData subcommandData;
 
+    public UnionCommandData(@NotNull CommandData commandData) {
+        this(commandData, null, null, null);
+    }
+
     public UnionCommandData(@NotNull SlashCommandData slashCommandData) {
-        this(slashCommandData, null, null);
+        this(null, slashCommandData, null, null);
     }
 
     public UnionCommandData(@NotNull SubcommandGroupData subcommandGroupData) {
-        this(null, subcommandGroupData, null);
+        this(null, null, subcommandGroupData, null);
     }
 
     public UnionCommandData(@NotNull SubcommandData subcommandData) {
-        this(null, null, subcommandData);
+        this(null, null, null, subcommandData);
     }
 
-    public UnionCommandData(SlashCommandData slashCommandData, SubcommandGroupData subcommandGroupData, SubcommandData subcommandData) {
-        if (slashCommandData == null && subcommandGroupData == null && subcommandData == null) {
+    public UnionCommandData(CommandData commandData, SlashCommandData slashCommandData, SubcommandGroupData subcommandGroupData, SubcommandData subcommandData) {
+        if (commandData == null && slashCommandData == null && subcommandGroupData == null && subcommandData == null) {
             throw new IllegalArgumentException("All parameters are null");
         }
+        this.commandData = commandData;
         this.slashCommandData = slashCommandData;
         this.subcommandGroupData = subcommandGroupData;
         this.subcommandData = subcommandData;
+    }
+
+    public boolean isCommandData() {
+        return commandData != null;
     }
 
     public boolean isSlashCommandData() {
@@ -43,6 +54,12 @@ public class UnionCommandData {
 
     public boolean isSubcommandData() {
         return subcommandData != null;
+    }
+
+    @NotNull
+    public CommandData getCommandData() {
+        Checks.check(isCommandData(), "This "+this+" is not a CommandData");
+        return commandData;
     }
 
     @NotNull
@@ -65,7 +82,9 @@ public class UnionCommandData {
 
     @NotNull
     public Object getData() {
-        if (isSlashCommandData()) {
+        if (isCommandData()) {
+            return commandData;
+        } else if (isSlashCommandData()) {
             return slashCommandData;
         } else if (isSubcommandGroupData()) {
             return subcommandGroupData;
@@ -77,7 +96,9 @@ public class UnionCommandData {
     @Override
     public String toString() {
         StringBuilder out = new StringBuilder("UnionCommandData<");
-        if (isSlashCommandData()) {
+        if (isCommandData()) {
+            out.append("commandData");
+        } else if (isSlashCommandData()) {
             out.append("slashCommandData");
         } else if (isSubcommandGroupData()) {
             out.append("subCommandGroupData");
@@ -89,7 +110,9 @@ public class UnionCommandData {
     }
 
     public Type getType() {
-        if (isSlashCommandData()) {
+        if (isCommandData()) {
+            return Type.COMMAND_DATA;
+        } else if (isSlashCommandData()) {
             return Type.SLASH_COMMAND_DATA;
         } else if (isSubcommandGroupData()) {
             return Type.SUBCOMMAND_GROUP_DATA;
@@ -99,6 +122,7 @@ public class UnionCommandData {
     }
 
     public enum Type {
+        COMMAND_DATA,
         SLASH_COMMAND_DATA,
         SUBCOMMAND_GROUP_DATA,
         SUBCOMMAND_DATA

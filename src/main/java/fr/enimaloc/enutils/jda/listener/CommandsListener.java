@@ -1,7 +1,9 @@
 package fr.enimaloc.enutils.jda.listener;
 
-import fr.enimaloc.enutils.jda.commands.RegisteredCommand;
+import fr.enimaloc.enutils.jda.commands.RegisteredContext;
+import fr.enimaloc.enutils.jda.commands.RegisteredSlash;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.GenericContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
@@ -9,10 +11,12 @@ import java.util.List;
 
 public class CommandsListener extends ListenerAdapter {
 
-    private List<RegisteredCommand> commands;
+    private List<RegisteredSlash> commands;
+    private List<RegisteredContext> contexts;
 
-    public CommandsListener(List<RegisteredCommand> commands) {
+    public CommandsListener(List<RegisteredSlash> commands, List<RegisteredContext> contexts) {
         this.commands = commands;
+        this.contexts = contexts;
     }
 
     @Override
@@ -29,5 +33,13 @@ public class CommandsListener extends ListenerAdapter {
                 .filter(command -> command.fullCommandName().equals(event.getInteraction().getFullCommandName()))
                 .findFirst()
                 .ifPresent(command -> command.autoComplete(event));
+    }
+
+    @Override
+    public void onGenericContextInteraction(GenericContextInteractionEvent<?> event) {
+        contexts.stream()
+                .filter(context -> context.fullCommandName().equals(event.getInteraction().getFullCommandName()))
+                .findFirst()
+                .ifPresent(context -> context.execute(event));
     }
 }
