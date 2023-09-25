@@ -3,21 +3,27 @@ package fr.enimaloc.enutils.jda.commands;
 import fr.enimaloc.enutils.jda.listener.InteractionListener;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.interactions.DiscordLocale;
 import net.dv8tion.jda.api.interactions.commands.SlashCommandInteraction;
+import net.dv8tion.jda.api.interactions.components.Component;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
+import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu;
 import net.dv8tion.jda.api.interactions.components.selections.SelectMenu;
 import net.dv8tion.jda.api.interactions.components.selections.SelectOption;
 import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import net.dv8tion.jda.internal.interactions.component.ButtonImpl;
+import net.dv8tion.jda.internal.interactions.component.EntitySelectMenuImpl;
 import net.dv8tion.jda.internal.interactions.component.StringSelectMenuImpl;
 import net.dv8tion.jda.internal.utils.Checks;
+import net.dv8tion.jda.internal.utils.Helpers;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -78,6 +84,7 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
         public SelectMenuBuilder selectMenu() {
             return new SelectMenuBuilder(listener);
         }
+
 
         public class ButtonBuilder {
             private final InteractionListener listener;
@@ -331,6 +338,26 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
                 return new StringSelectMenuBuilder(listener, id);
             }
 
+            public EntitySelectMenuBuilder entitySelectMenu(String id, EntitySelectMenu.SelectTarget target, @Nullable ChannelType... channelTypes) {
+                return new EntitySelectMenuBuilder(listener, id, target, channelTypes);
+            }
+
+            public EntitySelectMenuBuilder entitySelectMenu(String id, EntitySelectMenu.SelectTarget target) {
+                return entitySelectMenu(id, target, null);
+            }
+
+            public EntitySelectMenuBuilder roleSelectMenu(String id) {
+                return entitySelectMenu(id, EntitySelectMenu.SelectTarget.ROLE);
+            }
+
+            public EntitySelectMenuBuilder userSelectMenu(String id) {
+                return entitySelectMenu(id, EntitySelectMenu.SelectTarget.USER);
+            }
+
+            public EntitySelectMenuBuilder channelSelectMenu(String id, @Nullable ChannelType... channelTypes) {
+                return entitySelectMenu(id, EntitySelectMenu.SelectTarget.CHANNEL, channelTypes);
+            }
+
             public class StringSelectMenuBuilder extends SelectMenu.Builder<StringSelectMenu, StringSelectMenuBuilder> {
                 private final List<SelectOption> options = new ArrayList<>();
                 private final InteractionListener listener;
@@ -338,7 +365,8 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
                 private AtomicInteger uses = new AtomicInteger(0);
                 private long maxAge = 0L;
                 private Predicate<StringSelectInteractionEvent> filter = unused -> true;
-                private Consumer<StringSelectInteractionEvent> callback = unused -> {};
+                private Consumer<StringSelectInteractionEvent> callback = unused -> {
+                };
 
                 protected StringSelectMenuBuilder(InteractionListener listener, String customId) {
                     super(customId);
@@ -390,8 +418,7 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
                 public StringSelectMenuBuilder setDefaultValues(@NotNull Collection<String> values) {
                     Checks.noneNull(values, "Values");
                     Set<String> set = new HashSet<>(values);
-                    for (ListIterator<SelectOption> it = getOptions ().listIterator(); it.hasNext();)
-                    {
+                    for (ListIterator<SelectOption> it = getOptions().listIterator(); it.hasNext(); ) {
                         SelectOption option = it.next();
                         it.set(option.withDefault(set.contains(option.getValue())));
                     }
@@ -448,6 +475,120 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
                     int min = Math.min(minValues, options.size());
                     int max = Math.min(maxValues, options.size());
                     StringSelectMenuImpl menu = new StringSelectMenuImpl(customId, placeholder, min, max, disabled, options);
+                    listener.registerCallback(menu, event -> {
+                        if (filter.test(event)) {
+                            if (maxAge > 0 && System.currentTimeMillis() - event.getInteraction().getTimeCreated().toInstant().toEpochMilli() >= maxAge) {
+                                return true;
+                            }
+                            callback.accept(event);
+                            return maxUses > 0 && uses.incrementAndGet() >= maxUses;
+                        }
+                        return false;
+                    });
+                    return menu;
+                }
+            }
+
+            public class EntitySelectMenuBuilder extends SelectMenu.Builder<EntitySelectMenu, EntitySelectMenuBuilder> {
+                private final InteractionListener listener;
+                private Component.Type componentType;
+                private EnumSet<ChannelType> channelTypes = EnumSet.noneOf(ChannelType.class);
+                private int maxUses = 0;
+                private AtomicInteger uses = new AtomicInteger(0);
+                private long maxAge = 0L;
+                private Predicate<EntitySelectInteractionEvent > filter = unused -> true;
+                private Consumer<EntitySelectInteractionEvent > callback = unused -> {
+                };
+
+                protected EntitySelectMenuBuilder(InteractionListener listener, String customId, EntitySelectMenu.SelectTarget target, @Nullable ChannelType... channelTypes) {
+                    super(customId);
+                    this.listener = listener;
+                    this.componentType = switch (target) {
+                        case ROLE -> Component.Type.ROLE_SELECT;
+                        case USER -> Component.Type.USER_SELECT;
+                        case CHANNEL -> Component.Type.CHANNEL_SELECT;
+                    };
+                    if (channelTypes != null) {
+                        this.channelTypes.addAll(Arrays.asList(channelTypes));
+                    }
+                }
+
+                @NotNull
+                public EntitySelectMenuBuilder setEntityTypes(@NotNull Collection<EntitySelectMenu.SelectTarget> types) {
+                    Checks.notEmpty(types, "Types");
+                    Checks.noneNull(types, "Types");
+
+                    EnumSet<EntitySelectMenu.SelectTarget> set = Helpers.copyEnumSet(EntitySelectMenu.SelectTarget.class, types);
+                    if (set.size() == 1) {
+                        if (set.contains(EntitySelectMenu.SelectTarget.CHANNEL))
+                            this.componentType = Component.Type.CHANNEL_SELECT;
+                        else if (set.contains(EntitySelectMenu.SelectTarget.ROLE))
+                            this.componentType = Component.Type.ROLE_SELECT;
+                        else if (set.contains(EntitySelectMenu.SelectTarget.USER))
+                            this.componentType = Component.Type.USER_SELECT;
+                    } else if (set.size() == 2) {
+                        if (set.contains(EntitySelectMenu.SelectTarget.USER) && set.contains(EntitySelectMenu.SelectTarget.ROLE))
+                            this.componentType = Component.Type.MENTIONABLE_SELECT;
+                        else
+                            throw new IllegalArgumentException("The provided combination of select targets is not supported. Provided: " + set);
+                    } else {
+                        throw new IllegalArgumentException("The provided combination of select targets is not supported. Provided: " + set);
+                    }
+
+                    return this;
+                }
+
+                @NotNull
+                public EntitySelectMenuBuilder setEntityTypes(@NotNull EntitySelectMenu.SelectTarget type, @NotNull EntitySelectMenu.SelectTarget... types) {
+                    Checks.notNull(type, "Type");
+                    Checks.noneNull(types, "Types");
+                    return setEntityTypes(EnumSet.of(type, types));
+                }
+
+                @NotNull
+                public EntitySelectMenuBuilder setChannelTypes(@NotNull Collection<ChannelType> types) {
+                    Checks.noneNull(types, "Types");
+                    for (ChannelType type : types)
+                        Checks.check(type.isGuild(), "Only guild channel types are allowed! Provided: %s", type);
+                    this.channelTypes = Helpers.copyEnumSet(ChannelType.class, types);
+                    return this;
+                }
+
+                @NotNull
+                public EntitySelectMenuBuilder setChannelTypes(@NotNull ChannelType... types) {
+                    return setChannelTypes(Arrays.asList(types));
+                }
+
+                public EntitySelectMenuBuilder withMaxUses(int maxUses) {
+                    Checks.check(maxUses > 0, "Max uses must be greater than 0!");
+                    this.maxUses = maxUses;
+                    return this;
+                }
+
+                public EntitySelectMenuBuilder withMaxAge(long maxAge, TimeUnit unit) {
+                    Checks.check(maxAge > 0, "Max age must be greater than 0!");
+                    this.maxAge = unit.toMillis(maxAge);
+                    return this;
+                }
+
+                public EntitySelectMenuBuilder withFilter(Predicate<EntitySelectInteractionEvent > filter) {
+                    Checks.notNull(filter, "Filter");
+                    this.filter = filter;
+                    return this;
+                }
+
+                public EntitySelectMenuBuilder withCallback(Consumer<EntitySelectInteractionEvent> callback) {
+                    Checks.notNull(callback, "Callback");
+                    this.callback = callback;
+                    return this;
+                }
+
+                @NotNull
+                @Override
+                public EntitySelectMenu build() {
+                    Checks.check(minValues <= maxValues, "Min values cannot be greater than max values!");
+                    EnumSet<ChannelType> channelTypes = componentType == Component.Type.CHANNEL_SELECT ? this.channelTypes : EnumSet.noneOf(ChannelType.class);
+                    EntitySelectMenuImpl menu = new EntitySelectMenuImpl(customId, placeholder, minValues, maxValues, disabled, componentType, channelTypes);
                     listener.registerCallback(menu, event -> {
                         if (filter.test(event)) {
                             if (maxAge > 0 && System.currentTimeMillis() - event.getInteraction().getTimeCreated().toInstant().toEpochMilli() >= maxAge) {
