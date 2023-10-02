@@ -4,6 +4,7 @@ import fr.enimaloc.enutils.jda.commands.RegisteredContext;
 import fr.enimaloc.enutils.jda.commands.RegisteredSlash;
 import fr.enimaloc.enutils.jda.commands.UnionCommandData;
 import fr.enimaloc.enutils.jda.listener.CommandsListener;
+import fr.enimaloc.enutils.jda.listener.InteractionListener;
 import fr.enimaloc.enutils.jda.register.processor.ContextCommandProcessor;
 import fr.enimaloc.enutils.jda.register.processor.SlashCommandProcessor;
 import fr.enimaloc.enutils.jda.register.processor.annotation.AnnotationContextCommandProcessor;
@@ -59,7 +60,7 @@ public class JDAEnutils {
 
     public JDAEnutils(JDA jda, List<RegisteredSlash> commands, List<RegisteredContext> contexts) {
         this.jda = jda;
-        this.jda.addEventListener(new CommandsListener(commands, contexts));
+        this.jda.addEventListener(new CommandsListener(commands, contexts), new InteractionListener());
         this.commands = commands;
         this.contexts = contexts;
     }
