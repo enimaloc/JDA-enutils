@@ -1,7 +1,8 @@
 package fr.enimaloc.enutils.jda.exception;
 
+import fr.enimaloc.enutils.jda.JDAEnutils;
 import net.dv8tion.jda.api.events.Event;
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,6 +30,12 @@ public record RegisteredExceptionHandler<T extends Event>(
         }
         try {
             method.invoke(instance, params.toArray());
+        } catch (IllegalArgumentException e) {
+            CommandException commandException = new CommandException("The exception handler method " +
+                    instance().getClass().getName() + ":" + method().getName() +
+                    " does not match with parameters SlashCommandInteractionEvent, InteractionHook, Throwable",
+                    e);
+            JDAEnutils.DEFAULT_EXCEPTION_HANDLER.accept(commandException, hook, (GenericInteractionCreateEvent) event);
         } catch (Throwable t) {
             t.printStackTrace();
         }

@@ -1,8 +1,8 @@
 package fr.enimaloc.enutils.jda.commands;
 
+import fr.enimaloc.enutils.jda.JDAEnutils;
 import fr.enimaloc.enutils.jda.exception.RegisteredExceptionHandler;
 import fr.enimaloc.enutils.jda.registered.RegisteredCommand;
-import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
@@ -54,25 +54,28 @@ public record RegisteredSlash(
         try {
             method.invoke(instance, params.toArray());
         } catch (Throwable t) {
-            processThrowable(event, event.deferReply().complete(), t.getCause());
+            processThrowable(event, event.isAcknowledged() ? event.getHook() : event.deferReply().complete(), t.getCause());
         }
     }
 
     private void processThrowable(SlashCommandInteractionEvent event, InteractionHook hook, Throwable t) {
+        if (method.getParameterTypes()[0] == GlobalSlashCommandEvent.class) {
+            event = new GlobalSlashCommandEvent(event);
+        } else if (method.getParameterTypes()[0] == GuildSlashCommandEvent.class) {
+            event = new GuildSlashCommandEvent(event);
+        }
         for (RegisteredExceptionHandler<SlashCommandInteractionEvent> handler : exceptionsHandler) {
-            Class<?> exceptionArg = Arrays.stream(handler.method().getParameterTypes())
-                    .filter(c -> c.isAssignableFrom(t.getClass()))
+            Class<?> exceptionArg = handler.exceptions().length == 1 && handler.exceptions()[0] == Throwable.class ?
+                    handler.method().getParameterTypes()[2] : Arrays.stream(handler.exceptions())
+                    .filter(exceptionClass -> exceptionClass.isAssignableFrom(t.getClass()))
                     .findFirst()
-                    .or(() -> Arrays.stream(handler.exceptions())
-                            .filter(c -> c.isAssignableFrom(t.getClass()))
-                            .findFirst())
-                    .orElse(Void.class);
-            if (exceptionArg.isAssignableFrom(t.getClass())) {
+                    .orElse(null);
+            if (exceptionArg != null && exceptionArg.isAssignableFrom(t.getClass())) {
                 handler.execute(event, hook, t);
                 return;
             }
         }
-        t.printStackTrace();
+        JDAEnutils.DEFAULT_EXCEPTION_HANDLER.accept(t, hook, event);
     }
 
     public void autoComplete(CommandAutoCompleteInteractionEvent event) {

@@ -1,5 +1,6 @@
 package fr.enimaloc.enutils.jda.commands;
 
+import fr.enimaloc.enutils.jda.JDAEnutils;
 import fr.enimaloc.enutils.jda.exception.RegisteredExceptionHandler;
 import fr.enimaloc.enutils.jda.registered.RegisteredCommand;
 import fr.enimaloc.enutils.jda.utils.Checks;
@@ -51,6 +52,6 @@ public record RegisteredContext(
                 return;
             }
         }
-        t.printStackTrace();
+        JDAEnutils.DEFAULT_EXCEPTION_HANDLER.accept(t, hook, event);
     }
 }
