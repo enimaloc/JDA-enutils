@@ -40,7 +40,7 @@ public interface CommandsProcessor<T extends RegisteredCommand> {
             }
             commands.addAll(Arrays.stream(elements).filter(Objects::nonNull).toList());
         }
-    return commands.toArray(this::generateArray);
+        return commands.toArray(this::generateArray);
     }
 
     T[] generateArray(int length);

@@ -86,13 +86,13 @@ public record RegisteredSlash(
     }
 
     public record ParameterData(OptionData data, OptionTransformer<?> transformer,
-                         Consumer<CommandAutoCompleteInteractionEvent> autocompletionConsumer) {}
+                                Consumer<CommandAutoCompleteInteractionEvent> autocompletionConsumer) {}
 
 
     public record OptionTransformer<T>(Class<T> clazz, OptionType type,
-                                        BiFunction<OptionData, Parameter, OptionData> builder,
-                                        BiFunction<SlashCommandInteractionEvent, OptionMapping, T> transform,
-                                        T defaultValue) {
+                                       BiFunction<OptionData, Parameter, OptionData> builder,
+                                       BiFunction<SlashCommandInteractionEvent, OptionMapping, T> transform,
+                                       T defaultValue) {
         public OptionTransformer(
                 Class<T> clazz, OptionType type, UnaryOperator<OptionData> builder,
                 BiFunction<SlashCommandInteractionEvent, OptionMapping, T> transformer, T defaultValue

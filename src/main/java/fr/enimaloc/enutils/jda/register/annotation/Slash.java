@@ -69,4 +69,5 @@ public @interface Slash {
             I18n i18nDescription() default @I18n(key = "commands.{{command_name}}.description");
         }
     }
+
 }
