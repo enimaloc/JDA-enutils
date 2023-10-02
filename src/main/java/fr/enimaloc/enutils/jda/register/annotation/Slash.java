@@ -31,13 +31,6 @@ public @interface Slash {
 
         @Retention(RetentionPolicy.RUNTIME)
         @Target(ElementType.PARAMETER)
-        @interface Length {
-            int min() default 0;
-            int max() default 6000;
-        }
-
-        @Retention(RetentionPolicy.RUNTIME)
-        @Target(ElementType.PARAMETER)
         @Repeatable(Choices.class)
         @interface Choice {
             String value();
