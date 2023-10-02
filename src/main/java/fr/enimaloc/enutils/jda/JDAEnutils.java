@@ -19,8 +19,8 @@ import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -101,8 +101,8 @@ public class JDAEnutils {
 
     public static class Builder {
         private JDA jda;
-        private List<Object> commands;
-        private List<Object> contexts;
+        private List<Object> commands = new ArrayList<>();
+        private List<Object> contexts = new ArrayList<>();
         private SlashCommandProcessor commandProcessor = new AnnotationSlashCommandProcessor();
         private ContextCommandProcessor contextProcessor = new AnnotationContextCommandProcessor();
 
