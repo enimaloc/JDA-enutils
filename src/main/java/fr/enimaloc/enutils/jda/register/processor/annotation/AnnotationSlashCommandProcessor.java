@@ -519,8 +519,8 @@ public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
                     mapping -> mapping == null ? OptionalDouble.empty() : OptionalDouble.of(mapping.getAsDouble())),
 
             new OptionTransformer<String>(String.class, OptionType.STRING, (builder, parameter) -> {
-                if (parameter.isAnnotationPresent(Slash.Option.Length.class)) {
-                    Slash.Option.Length range = parameter.getAnnotation(Slash.Option.Length.class);
+                if (parameter.isAnnotationPresent(Length.class)) {
+                    Length range = parameter.getAnnotation(Length.class);
                     Checks.inRange(range.min(), 0, 6000, "String length min must be between 0 and 6000");
                     Checks.inRange(range.max(), 1, 6000, "String length max must be between 1 and 6000");
                     builder.setRequiredLength(range.min(), range.max());
