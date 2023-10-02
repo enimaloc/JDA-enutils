@@ -3,12 +3,16 @@ package fr.enimaloc.enutils.jda;
 import fr.enimaloc.enutils.jda.commands.RegisteredContext;
 import fr.enimaloc.enutils.jda.commands.RegisteredSlash;
 import fr.enimaloc.enutils.jda.commands.UnionCommandData;
+import fr.enimaloc.enutils.jda.eventListener.RegisteredEvent;
 import fr.enimaloc.enutils.jda.listener.CommandsListener;
+import fr.enimaloc.enutils.jda.listener.EventListener;
 import fr.enimaloc.enutils.jda.listener.InteractionListener;
 import fr.enimaloc.enutils.jda.listener.ModalListener;
 import fr.enimaloc.enutils.jda.register.processor.ContextCommandProcessor;
+import fr.enimaloc.enutils.jda.register.processor.EventListenerProcessor;
 import fr.enimaloc.enutils.jda.register.processor.SlashCommandProcessor;
 import fr.enimaloc.enutils.jda.register.processor.annotation.AnnotationContextCommandProcessor;
+import fr.enimaloc.enutils.jda.register.processor.annotation.AnnotationEventListenerProcessor;
 import fr.enimaloc.enutils.jda.register.processor.annotation.AnnotationSlashCommandProcessor;
 import fr.enimaloc.enutils.jda.utils.TriConsumer;
 import net.dv8tion.jda.api.JDA;
@@ -58,12 +62,14 @@ public class JDAEnutils {
     private JDA jda;
     private List<RegisteredSlash> commands;
     private List<RegisteredContext> contexts;
+    private List<RegisteredEvent> listeners;
 
-    public JDAEnutils(JDA jda, List<RegisteredSlash> commands, List<RegisteredContext> contexts) {
+    public JDAEnutils(JDA jda, List<RegisteredSlash> commands, List<RegisteredContext> contexts, List<RegisteredEvent> listeners) {
         this.jda = jda;
-        this.jda.addEventListener(new CommandsListener(commands, contexts), new InteractionListener(), new ModalListener());
+        this.jda.addEventListener(new CommandsListener(commands, contexts), new InteractionListener(), new ModalListener(), new EventListener(listeners));
         this.commands = commands;
         this.contexts = contexts;
+        this.listeners = listeners;
     }
 
     public static JDAEnutils.Builder builder() {
@@ -103,8 +109,10 @@ public class JDAEnutils {
         private JDA jda;
         private List<Object> commands = new ArrayList<>();
         private List<Object> contexts = new ArrayList<>();
+        private List<Object> listeners = new ArrayList<>();
         private SlashCommandProcessor commandProcessor = new AnnotationSlashCommandProcessor();
         private ContextCommandProcessor contextProcessor = new AnnotationContextCommandProcessor();
+        private EventListenerProcessor eventListenerProcessor = new AnnotationEventListenerProcessor();
 
         public Builder setJda(JDA jda) {
             this.jda = jda;
@@ -121,11 +129,17 @@ public class JDAEnutils {
             return this;
         }
 
+        public Builder setListeners(List<Object> listeners) {
+            this.listeners = listeners;
+            return this;
+        }
+
         public JDAEnutils build() {
             return new JDAEnutils(
                     jda,
                     List.of(commandProcessor.registerCommands(commands.toArray())),
-                    List.of(contextProcessor.registerCommands(contexts.toArray()))
+                    List.of(contextProcessor.registerCommands(contexts.toArray())),
+                            List.of(eventListenerProcessor.register(listeners.toArray()))
             );
         }
     }

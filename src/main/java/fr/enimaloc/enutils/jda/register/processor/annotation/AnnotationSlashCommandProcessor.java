@@ -9,6 +9,7 @@ import fr.enimaloc.enutils.jda.register.annotation.*;
 import fr.enimaloc.enutils.jda.register.processor.SlashCommandProcessor;
 import fr.enimaloc.enutils.jda.utils.AnnotationUtils;
 import fr.enimaloc.enutils.jda.utils.Checks;
+import fr.enimaloc.enutils.jda.utils.Utils;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.entities.channel.Channel;
@@ -366,7 +367,7 @@ public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
             Consumer<CommandAutoCompleteInteractionEvent> autocompletionConsumer = null;
             if (parameter.isAnnotationPresent(Slash.Option.AutoCompletion.class)) {
                 Slash.Option.AutoCompletion autoCompletion = parameter.getAnnotation(Slash.Option.AutoCompletion.class);
-                Optional<Method> methodFound = getMethod(instance, autoCompletion.target());
+                Optional<Method> methodFound = Utils.getMethod(instance, autoCompletion.target());
                 if (autoCompletion.array().length != 0) {
                     autocompletionConsumer = event -> event.replyChoices(Arrays.stream(autoCompletion.array())
                                     .filter(s -> s.startsWith(event.getFocusedOption().getValue()))
@@ -449,27 +450,6 @@ public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
         }
     }
     // endregion
-
-    // region Utils
-    private Optional<Method> getMethod(Object sourceInstance, MethodTarget target) {
-        return getMethod(sourceInstance.getClass(), target);
-    }
-
-    private Optional<Method> getMethod(Class<?> sourceClazz, MethodTarget target) {
-        return getMethod(sourceClazz, target.clazz(), target.method());
-    }
-
-    private Optional<Method> getMethod(Object sourceInstance, Class<?> clazz, String name) {
-        return getMethod(sourceInstance.getClass(), clazz, name);
-    }
-    // endregion
-
-    private Optional<Method> getMethod(Class<?> sourceClazz, Class<?> clazz, String name) {
-        if (clazz == null || clazz == Void.class) {
-            clazz = sourceClazz;
-        }
-        return Arrays.stream(clazz.getDeclaredMethods()).filter(m -> m.getName().equals(name)).findFirst();
-    }
 
     private String normaliseName(String str) {
         String normalized = str.replaceAll("([a-z])([A-Z])", "$1-$2").replace(' ', '-').toLowerCase();
