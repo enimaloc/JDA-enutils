@@ -1,6 +1,12 @@
 package fr.enimaloc.enutils.jda.commands;
 
 import fr.enimaloc.enutils.jda.listener.InteractionListener;
+import fr.enimaloc.enutils.jda.listener.ModalListener;
+import fr.enimaloc.enutils.jda.modals.RegisteredModal;
+import fr.enimaloc.enutils.jda.register.annotation.Length;
+import fr.enimaloc.enutils.jda.utils.AnnotationUtils;
+import fr.enimaloc.enutils.jda.utils.Checks.Reflection;
+import fr.enimaloc.enutils.jda.utils.StringUtils;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
@@ -11,23 +17,33 @@ import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionE
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.interactions.DiscordLocale;
 import net.dv8tion.jda.api.interactions.commands.SlashCommandInteraction;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Component;
+import net.dv8tion.jda.api.interactions.components.ItemComponent;
+import net.dv8tion.jda.api.interactions.components.LayoutComponent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu;
 import net.dv8tion.jda.api.interactions.components.selections.SelectMenu;
 import net.dv8tion.jda.api.interactions.components.selections.SelectOption;
 import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.interactions.components.text.TextInput;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import net.dv8tion.jda.internal.interactions.component.ButtonImpl;
 import net.dv8tion.jda.internal.interactions.component.EntitySelectMenuImpl;
 import net.dv8tion.jda.internal.interactions.component.StringSelectMenuImpl;
+import net.dv8tion.jda.internal.interactions.modal.ModalImpl;
 import net.dv8tion.jda.internal.utils.Checks;
 import net.dv8tion.jda.internal.utils.Helpers;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -35,6 +51,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionEvent {
+    public static final Logger LOGGER = LoggerFactory.getLogger(CustomSlashCommandInteractionEvent.class);
+
     public CustomSlashCommandInteractionEvent(JDA api, long responseNumber, SlashCommandInteraction interaction) {
         super(api, responseNumber, interaction);
     }
@@ -67,6 +85,132 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
                 .map(InteractionListener.class::cast)
                 .findFirst()
                 .orElseThrow());
+    }
+
+    public RegisteredModal buildModal(Object instance) {
+        return buildModal(UUID.randomUUID().toString(), instance);
+    }
+
+    public <T> RegisteredModal buildModal(String id, Object instance) {
+        return buildModal(id, (Class<T>) instance.getClass(), (T) instance);
+    }
+
+    private <T> RegisteredModal buildModal(String id, Class<T> clazz, T instance) {
+        fr.enimaloc.enutils.jda.utils.Checks.notNull(clazz, "Class cannot be null");
+        fr.enimaloc.enutils.jda.utils.Checks.notNull(instance, "Instance cannot be null");
+        Reflection.annotationPresent(clazz, fr.enimaloc.enutils.jda.register.annotation.Modal.class);
+        fr.enimaloc.enutils.jda.register.annotation.Modal modal = clazz.getAnnotation(fr.enimaloc.enutils.jda.register.annotation.Modal.class);
+        String name = AnnotationUtils.get(modal.title()).orElse(clazz.getSimpleName());
+        List<RegisteredModal.ModalField> fields = new ArrayList<>();
+
+        for (Field field : Arrays.stream(clazz.getDeclaredFields())
+                .filter(field -> field.isAnnotationPresent(fr.enimaloc.enutils.jda.register.annotation.Modal.Component.class))
+                .toList()) {
+            Reflection.trySetAccessible(field);
+            fr.enimaloc.enutils.jda.register.annotation.Modal.Component component
+                    = field.getAnnotation(fr.enimaloc.enutils.jda.register.annotation.Modal.Component.class);
+            String compId = AnnotationUtils.get(component.id()).orElse(field.getName());
+            String label = AnnotationUtils.get(component.label()).orElse(field.getName());
+            int actionRowId = field.isAnnotationPresent(fr.enimaloc.enutils.jda.register.annotation.Modal.ActionRow.class)
+                    ? field.getAnnotation(fr.enimaloc.enutils.jda.register.annotation.Modal.ActionRow.class).id()
+                    : AnnotationUtils.INT_DEFAULT;
+            ItemComponent comp = null;
+            if (String.class.isAssignableFrom(field.getType()) ||
+                    (Optional.class.isAssignableFrom(field.getType()) && field.getGenericType() instanceof ParameterizedType pt
+                            && pt.getActualTypeArguments()[0] == String.class)
+            ) {
+                fr.enimaloc.enutils.jda.register.annotation.Modal.TextInput textInput
+                        = field.isAnnotationPresent(fr.enimaloc.enutils.jda.register.annotation.Modal.TextInput.class)
+                                ? field.getAnnotation(fr.enimaloc.enutils.jda.register.annotation.Modal.TextInput.class)
+                                : fr.enimaloc.enutils.jda.register.annotation.Modal.TextInput.DEFAULT_TEXT_INPUT;
+
+                TextInput.Builder builder = TextInput.create(compId, label, textInput.type());
+                AnnotationUtils.get(textInput.placeholder())
+                        .map(s -> StringUtils.truncate(s, TextInput.MAX_PLACEHOLDER_LENGTH))
+                        .ifPresent(builder::setPlaceholder);
+                if (field.isAnnotationPresent(Length.class)) {
+                    Length length = field.getAnnotation(Length.class);
+                    AnnotationUtils.get(length.min())
+                            .stream()
+                            .map(i -> Math.max(0, Math.min(i, TextInput.MAX_VALUE_LENGTH)))
+                            .findFirst()
+                            .ifPresent(builder::setMinLength);
+                    AnnotationUtils.get(length.max())
+                            .stream()
+                            .map(i -> Math.max(1, Math.min(i, TextInput.MAX_VALUE_LENGTH)))
+                            .findFirst()
+                            .ifPresent(builder::setMaxLength);
+                }
+                String value = null;
+                try {
+                    if (field.getType() == String.class) {
+                        value = (String) field.get(instance);
+                    } else if (field.getType() == Optional.class) {
+                        value = ((Optional<String>) field.get(instance)).orElse(null);
+                    }
+                    if (value.length() > builder.getMaxLength()) {
+                        LOGGER.warn("Value of field '{}' in class {} is longer than the max length of a text input ({}), truncate it !", field.getName(), clazz.getName(), builder.getMaxLength());
+                        value = StringUtils.truncate(value, builder.getMaxLength(), null);
+                    }
+                } catch (IllegalAccessException e) {
+                    LOGGER.error("Cannot get value of field {} in class {}", field.getName(), clazz.getName());
+                }
+                if (value != null) {
+                    builder.setValue(value);
+                }
+                builder.setRequired(!Optional.class.isAssignableFrom(field.getType()));
+                comp = builder.build();
+            }
+            fields.add(new RegisteredModal.ModalField(field, compId, actionRowId, comp));
+        }
+        List<LayoutComponent> rows = new ArrayList<>();
+        rows.add(null);
+        int lastId = 0;
+        for (RegisteredModal.ModalField field : fields) {
+            int rowId = AnnotationUtils.get(field.actionRowId()).orElse(lastId);
+            if (rowId != lastId) {
+                while (rows.size() <= rowId) {
+                    rows.add(null);
+                }
+                rows.add(rowId, ActionRow.of(field.component()));
+            } else {
+                if (actionRowComplete((ActionRow) rows.get(rowId), field.component().getType())) {
+                    rowId++;
+                    while (rows.size() <= rowId) {
+                        rows.add(null);
+                    }
+                }
+                if (rows.get(rowId) == null) {
+                    rows.set(rowId, ActionRow.of(field.component()));
+                } else {
+                    rows.set(rowId, addComponent((ActionRow) rows.get(rowId), field.component()));
+                }
+            }
+        }
+        RegisteredModal registeredModal = new RegisteredModal(clazz,
+                instance,
+                new ModalImpl(id, name, rows.stream().filter(Objects::nonNull).toList()),
+                fields.toArray(RegisteredModal.ModalField[]::new),
+                new CompletableFuture());
+        getJDA().getEventManager()
+                .getRegisteredListeners()
+                .stream()
+                .filter(ModalListener.class::isInstance)
+                .map(ModalListener.class::cast)
+                .findFirst()
+                .orElseThrow()
+                .registerModal(registeredModal);
+        return registeredModal;
+    }
+
+    private ActionRow addComponent(ActionRow row, ItemComponent component) {
+        List<ItemComponent> components = row.getComponents();
+        components.add(component);
+        return ActionRow.of(components);
+    }
+
+    private boolean actionRowComplete(ActionRow row, Component.Type type) {
+        return row != null && row.getComponents().stream().filter(component -> component.getType() == type).count() >= type.getMaxPerRow();
     }
 
     public class ComponentBuilder {
