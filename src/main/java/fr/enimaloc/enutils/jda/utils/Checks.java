@@ -7,6 +7,7 @@ import org.jetbrains.annotations.Contract;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Predicate;
@@ -238,6 +239,14 @@ public class Checks {
 
         public static void trySetAccessible(AccessibleObject object, String message) {
             check(object.trySetAccessible(), message);
+        }
+
+        public static void returnTypeAssignable(Method method, Class<?> clazz) {
+            returnTypeAssignable(method, clazz, "The return type of " + method.getName() + " is not assignable from " + clazz.getName());
+        }
+
+        public static void returnTypeAssignable(Method method, Class<?> clazz, String message) {
+            check(clazz.isAssignableFrom(method.getReturnType()), message);
         }
     }
 }
