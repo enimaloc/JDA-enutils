@@ -26,6 +26,9 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -59,14 +62,16 @@ public class JDAEnutils {
                 }
             };
 
+    private ThreadFactory threadFactory;
     private JDA jda;
     private List<RegisteredSlash> commands;
     private List<RegisteredContext> contexts;
     private List<RegisteredEvent> listeners;
 
-    public JDAEnutils(JDA jda, List<RegisteredSlash> commands, List<RegisteredContext> contexts, List<RegisteredEvent> listeners) {
+    public JDAEnutils(ThreadFactory threadFactory, JDA jda, List<RegisteredSlash> commands, List<RegisteredContext> contexts, List<RegisteredEvent> listeners) {
+        this.threadFactory = threadFactory;
         this.jda = jda;
-        this.jda.addEventListener(new CommandsListener(commands, contexts), new InteractionListener(), new ModalListener(), new EventListener(listeners));
+        this.jda.addEventListener(new CommandsListener(threadFactory, commands, contexts), new InteractionListener(), new ModalListener(), new EventListener(threadFactory, listeners));
         this.commands = commands;
         this.contexts = contexts;
         this.listeners = listeners;
@@ -113,6 +118,7 @@ public class JDAEnutils {
         private SlashCommandProcessor commandProcessor = new AnnotationSlashCommandProcessor();
         private ContextCommandProcessor contextProcessor = new AnnotationContextCommandProcessor();
         private EventListenerProcessor eventListenerProcessor = new AnnotationEventListenerProcessor();
+        private ThreadFactory threadFactory = Executors.defaultThreadFactory();
 
         public Builder setJda(JDA jda) {
             this.jda = jda;
@@ -134,8 +140,14 @@ public class JDAEnutils {
             return this;
         }
 
+        public Builder setThreadFactory(ThreadFactory threadFactory) {
+            this.threadFactory = threadFactory;
+            return this;
+        }
+
         public JDAEnutils build() {
             return new JDAEnutils(
+                    threadFactory,
                     jda,
                     List.of(commandProcessor.registerCommands(commands.toArray())),
                     List.of(contextProcessor.registerCommands(contexts.toArray())),

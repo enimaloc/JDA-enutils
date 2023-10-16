@@ -16,10 +16,7 @@ import net.dv8tion.jda.api.entities.channel.Channel;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.attribute.IThreadContainer;
 import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.AudioChannel;
-import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
-import net.dv8tion.jda.api.entities.channel.middleman.StandardGuildChannel;
-import net.dv8tion.jda.api.entities.channel.middleman.StandardGuildMessageChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.*;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.DiscordLocale;
@@ -112,21 +109,25 @@ public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
         Slash slash = method.getAnnotation(Slash.class);
         String name = normaliseName(AnnotationUtils.get(slash.name()).orElse(method.getName()));
         String description = AnnotationUtils.get(slash.description()).orElse(DEFAULT_DESCRIPTION);
-        RegisteredSlash.ParameterData[] params = processParams(instance, method);
-        CommandDataImpl data = applyData(new CommandDataImpl(name, description), instance, name, method);
-        data.addOptions(Arrays.stream(params)
-                .map(RegisteredSlash.ParameterData::data)
-                .toArray(OptionData[]::new));
-        return new RegisteredSlash(
-                new UnionCommandData(data),
-                params,
-                instance,
-                method,
-                name,
-                description,
-                getExceptionHandler(instance),
-                null
-        );
+        try {
+            RegisteredSlash.ParameterData[] params = processParams(instance, method);
+            CommandDataImpl data = applyData(new CommandDataImpl(name, description), instance, name, method);
+            data.addOptions(Arrays.stream(params)
+                    .map(RegisteredSlash.ParameterData::data)
+                    .toArray(OptionData[]::new));
+            return new RegisteredSlash(
+                    new UnionCommandData(data),
+                    params,
+                    instance,
+                    method,
+                    name,
+                    description,
+                    getExceptionHandler(instance),
+                    null
+            );
+        } catch (IllegalArgumentException e) {
+            throw new CommandException("Error while registering %s (%s#%s)".formatted(name, method.getDeclaringClass().getName(), method.getName()), e);
+        }
     }
 
     private RegisteredSlash[] processClassCommands(Object instance) {
@@ -602,6 +603,13 @@ public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
             new OptionTransformer<>(IMentionable.class, OptionType.MENTIONABLE, OptionMapping::getAsMentionable),
 
             new OptionTransformer<>(Channel.class, OptionType.CHANNEL, OptionMapping::getAsChannel),
+            new OptionTransformer<MessageChannel>(MessageChannel.class, OptionType.CHANNEL,
+                    builder -> builder.setChannelTypes(ChannelType.TEXT,
+                            ChannelType.FORUM,
+                            ChannelType.NEWS,
+                            ChannelType.STAGE,
+                            ChannelType.VOICE),
+                    mapping -> mapping.getAsChannel().asGuildMessageChannel()),
             new OptionTransformer<GuildMessageChannel>(GuildMessageChannel.class, OptionType.CHANNEL,
                     builder -> builder.setChannelTypes(ChannelType.TEXT,
                             ChannelType.FORUM,
