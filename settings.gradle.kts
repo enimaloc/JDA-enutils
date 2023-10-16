@@ -1,2 +1,2 @@
-rootProject.name = "jda-enutils-v2"
+rootProject.name = "jda-enutils"
 

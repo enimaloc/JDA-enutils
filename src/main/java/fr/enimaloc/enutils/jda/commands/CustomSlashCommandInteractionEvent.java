@@ -732,7 +732,7 @@ public class CustomSlashCommandInteractionEvent extends SlashCommandInteractionE
                 public EntitySelectMenu build() {
                     Checks.check(minValues <= maxValues, "Min values cannot be greater than max values!");
                     EnumSet<ChannelType> channelTypes = componentType == Component.Type.CHANNEL_SELECT ? this.channelTypes : EnumSet.noneOf(ChannelType.class);
-                    EntitySelectMenuImpl menu = new EntitySelectMenuImpl(customId, placeholder, minValues, maxValues, disabled, componentType, channelTypes);
+                    EntitySelectMenuImpl menu = new EntitySelectMenuImpl(customId, placeholder, minValues, maxValues, disabled, componentType, channelTypes, Collections.emptyList());
                     listener.registerCallback(menu, event -> {
                         if (filter.test(event)) {
                             if (maxAge > 0 && System.currentTimeMillis() - event.getInteraction().getTimeCreated().toInstant().toEpochMilli() >= maxAge) {
