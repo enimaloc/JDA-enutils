@@ -4,19 +4,23 @@ plugins {
 }
 
 group = "fr.enimaloc"
-version = "0.1.1"
+version = "0.4.2"
 
 repositories {
     mavenCentral()
+    maven("https://repository.aspose.com/repo/")
 }
 
 dependencies {
-    implementation("net.dv8tion:JDA:5.0.0-beta.15") {
+    implementation("net.dv8tion:JDA:5.0.0-beta.20") {
         exclude("club.minnced", "opus-java")
     }
 
+    testImplementation("org.slf4j:slf4j-simple:2.0.3")
     testImplementation(platform("org.junit:junit-bom:5.9.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("com.fasterxml.jackson.core:jackson-databind:2.13.0")
+    testImplementation("com.aspose:aspose-imaging:23.9:jdk16")
 }
 
 var isRelease = !(version as String).startsWith("0.") && !(version as String).endsWith("SNAPSHOT")
@@ -27,7 +31,7 @@ publishing {
     println("Publishing to ${if (isRelease) "releases" else "snapshots"}")
     repositories {
         maven {
-            url = uri("https://m2.enimaloc.fr/${if (isRelease) "releases" else "snapshots"}")
+            url = uri("http://m2.enimaloc.fr/${if (isRelease) "releases" else "snapshots"}")
             credentials {
                 username = System.getenv("MAVEN_NAME") ?: property("mavenUsername").toString()
                 password = System.getenv("MAVEN_TOKEN") ?: property("mavenPassword").toString()
@@ -35,6 +39,7 @@ publishing {
             authentication {
                 create<BasicAuthentication>("basic")
             }
+            isAllowInsecureProtocol = true
         }
     }
     publications {
