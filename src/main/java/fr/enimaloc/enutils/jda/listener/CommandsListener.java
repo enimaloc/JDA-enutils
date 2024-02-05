@@ -1,5 +1,6 @@
 package fr.enimaloc.enutils.jda.listener;
 
+import fr.enimaloc.enutils.jda.Constant;
 import fr.enimaloc.enutils.jda.commands.RegisteredContext;
 import fr.enimaloc.enutils.jda.commands.RegisteredSlash;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
@@ -8,13 +9,16 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
 import java.util.List;
+import java.util.concurrent.ThreadFactory;
 
 public class CommandsListener extends ListenerAdapter {
 
+    private ThreadFactory threadFactory;
     private List<RegisteredSlash> commands;
     private List<RegisteredContext> contexts;
 
-    public CommandsListener(List<RegisteredSlash> commands, List<RegisteredContext> contexts) {
+    public CommandsListener(ThreadFactory threadFactory, List<RegisteredSlash> commands, List<RegisteredContext> contexts) {
+        this.threadFactory = threadFactory;
         this.commands = commands;
         this.contexts = contexts;
     }
@@ -24,7 +28,15 @@ public class CommandsListener extends ListenerAdapter {
         commands.stream()
                 .filter(command -> command.fullCommandName().equals(event.getInteraction().getFullCommandName()))
                 .findFirst()
-                .ifPresent(command -> command.execute(event));
+                .ifPresent(command -> {
+                    Thread thread = threadFactory.newThread(() -> command.execute(event));
+                    thread.setName(Constant.ThreadName.SLASH_COMMAND_EXECUTOR.formatted(
+                            event.getFullCommandName(),
+                            event.getCommandId(),
+                            event.getInteraction().getId()
+                    ));
+                    thread.start();
+                });
     }
 
     @Override
@@ -32,7 +44,15 @@ public class CommandsListener extends ListenerAdapter {
         commands.stream()
                 .filter(command -> command.fullCommandName().equals(event.getInteraction().getFullCommandName()))
                 .findFirst()
-                .ifPresent(command -> command.autoComplete(event));
+                .ifPresent(command -> {
+                    Thread thread = threadFactory.newThread(() -> command.autoComplete(event));
+                    thread.setName(Constant.ThreadName.SLASH_COMMAND_AUTOCOMPLETION.formatted(
+                            event.getFullCommandName(),
+                            event.getCommandId(),
+                            event.getInteraction().getId()
+                    ));
+                    thread.start();
+                });
     }
 
     @Override
@@ -40,6 +60,14 @@ public class CommandsListener extends ListenerAdapter {
         contexts.stream()
                 .filter(context -> context.fullCommandName().equals(event.getInteraction().getFullCommandName()))
                 .findFirst()
-                .ifPresent(context -> context.execute(event));
+                .ifPresent(context -> {
+                    Thread thread = threadFactory.newThread(() -> context.execute(event));
+                    thread.setName(Constant.ThreadName.CONTEXT_COMMAND_EXECUTOR.formatted(
+                            event.getFullCommandName(),
+                            event.getCommandId(),
+                            event.getInteraction().getId()
+                    ));
+                    thread.start();
+                });
     }
 }
