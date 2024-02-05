@@ -755,39 +755,6 @@ public class AnnotationSlashCommandProcessor implements SlashCommandProcessor {
                                 .complete();
                     }),
 
-            new OptionTransformer<>(AbstractMessage.class, OptionType.STRING,
-                    (event, mapping) -> {
-                        Matcher matcher = Message.JUMP_URL_PATTERN.matcher(
-                                mapping.getAsString());
-                        boolean foundChannel = true;
-                        if (!matcher.find()) {
-                            matcher = Pattern.compile(
-                                            "(?<guild>\\d+)/(?<channel>\\d+)/(?<message>\\d+)")
-                                    .matcher(mapping.getAsString());
-                            if (!matcher.find()) {
-                                matcher = Pattern.compile("(?<channel>\\d+)/(?<message>\\d+)")
-                                        .matcher(mapping.getAsString());
-                                if (!matcher.find()) {
-                                    foundChannel = false;
-                                    matcher = Pattern.compile("(?<message>\\d+)")
-                                            .matcher(mapping.getAsString());
-                                    if (!matcher.find()) {
-                                        return null;
-                                    }
-                                }
-                            }
-                        }
-                        TextChannel channel = event.getChannel().asTextChannel();
-                        if (foundChannel) {
-                            channel = event.getJDA().getTextChannelById(matcher.group("channel"));
-                            if (channel == null) {
-                                channel = event.getChannel().asTextChannel();
-                            }
-                        }
-                        return (AbstractMessage) channel.retrieveMessageById(matcher.group("message"))
-                                .complete();
-                    }),
-
             new OptionTransformer<>(ReceivedMessage.class, OptionType.STRING,
                     (event, mapping) -> {
                         Matcher matcher = Message.JUMP_URL_PATTERN.matcher(
